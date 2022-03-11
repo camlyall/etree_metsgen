@@ -1,15 +1,13 @@
-import copy
-from datetime import datetime, timedelta
-from distutils.command.sdist import sdist
 import getopt
 import hashlib
 import mimetypes
 import os
-from pathlib import Path
 import uuid
 import xml.etree.ElementTree as ET
 import sys
 import utils
+from pathlib import Path
+from datetime import datetime, timedelta
 
 
 def get_checksum(file: Path) -> str:
@@ -230,7 +228,7 @@ def csip_struct_map(mets: ET.ElementTree, cit: str, nsmap: dict) -> ET.Element:
                 ET.SubElement(div_to_use, '{%s}mptr' % nsmap[''],
                             attrib={
                                 '{%s}type' % nsmap['xlink']: 'simple',
-                                '{%s}href' % nsmap['xlink']: str(href.parent),
+                                '{%s}href' % nsmap['xlink']: str(href),
                                 '{%s}title' % nsmap['xlink']: fileGrp.get('ID'),
                                 'LOCTYPE': 'URL'
                             })
