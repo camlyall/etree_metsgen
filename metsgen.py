@@ -10,6 +10,67 @@ from pathlib import Path
 from datetime import datetime, timedelta
 
 
+def get_package_and_uuid_from_string(string: str):
+
+    pkg_name = ''
+    pkg_uuid = ''
+
+    UUID4_LENGTH = 36
+
+    # If the string is less than the valid UUID4 length it cannot contain a uuid
+    if len(string) < UUID4_LENGTH:
+        return string, ''
+
+    # Check to see if 'uuid-' prefix is contained in the string
+    the_uuid = ''
+    if 'uuid-' in string:
+        prefix_index = string.index('uuid-')
+        uuid_index = prefix_index + len('uuid-')
+        try:
+            the_uuid = string[uuid_index:uuid_index + UUID4_LENGTH]
+        except IndexError:
+            # string not long enough for prefix + valid uuid
+            pass
+        else:
+            try:
+                uuid.UUID(the_uuid, version=4)
+            except ValueError:
+                # Not a valid UUID4
+                pass
+            else:
+                pkg_name = string[:prefix_index]
+                # if there is no package name before the uuid use any text after the uuid
+                if pkg_name == '':
+                    pkg_name = string[uuid_index + len(the_uuid):]
+                pkg_uuid = the_uuid
+    
+
+    if pkg_name == '' and pkg_uuid == '':
+        # See if the uuid is at the end of string name (most likely)
+        the_uuid = string[:-UUID4_LENGTH]
+        try:
+            uuid.UUID(the_uuid, version=4)
+        except ValueError:
+            # Not a valid UUID4
+            pass
+        else:
+            pkg_name = string[:-len(the_uuid)]
+            pkg_uuid = the_uuid
+
+    if pkg_name == '' and pkg_uuid == '':
+        # See if the uuid is at the start of string name
+        the_uuid = string[:UUID4_LENGTH]
+        try:
+            uuid.UUID(the_uuid, version=4)
+        except ValueError:
+            # Not a valid UUID4
+            pass
+        else:
+            pkg_name = string[len(the_uuid):]
+            pkg_uuid = the_uuid
+    return pkg_name.strip(), pkg_uuid
+
+
 def get_checksum(file: Path) -> str:
     sha256_hash = hashlib.sha256()
     with open(file, "rb") as f:
@@ -46,8 +107,15 @@ def generate_mets(directory: Path, content_info_type: str, agent_data: dict, is_
     bst_now = (now + timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%S%z")
 
     # Mets attributes, dependant on the content information type
+
+    if is_root_mets:
+        pkg_name, _ = get_package_and_uuid_from_string(directory.name)
+        objid = pkg_name + " - " + new_uuid('uuid-')
+    else:
+        objid = directory.name
+
     mets_element_attrib = {
-        'OBJID': directory.name,
+        'OBJID': objid,
         'LABEL': "CSIP Information Package",
         'TYPE': 'OTHER',
         '{%s}OTHERTYPE' % nsmap['csip']: 'MIXED',
