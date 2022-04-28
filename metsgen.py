@@ -10,65 +10,66 @@ from pathlib import Path
 from datetime import datetime, timedelta
 
 
-def get_package_and_uuid_from_string(string: str):
+def remove_package_divider(package: str, is_prefix: bool) -> str:
+    possible_dividers = ['-', '_']
 
-    pkg_name = ''
-    pkg_uuid = ''
+    package = package.strip()
+
+    for divider in possible_dividers:
+        if is_prefix:
+            if package.endswith(divider):
+                return package[:-1].strip()
+        else:
+            if package.startswith(divider):
+                return package[1:].strip()
+
+
+def get_package_name(package: str) -> str:
+
+    pkg_name = ""
 
     UUID4_LENGTH = 36
 
-    # If the string is less than the valid UUID4 length it cannot contain a uuid
-    if len(string) < UUID4_LENGTH:
-        return string, ''
+    # Determine location of uuid if present
+    if len(package) >= UUID4_LENGTH:
+        test_prefix = 'uuid-'
+        # See if the package is just uuid
+        if is_valid_uuid(package):
+            return ''
 
-    # Check to see if 'uuid-' prefix is contained in the string
-    the_uuid = ''
-    if 'uuid-' in string:
-        prefix_index = string.index('uuid-')
-        uuid_index = prefix_index + len('uuid-')
-        try:
-            the_uuid = string[uuid_index:uuid_index + UUID4_LENGTH]
-        except IndexError:
-            # string not long enough for prefix + valid uuid
-            pass
-        else:
+        if test_prefix in package:
+            prefix_index = package.index(test_prefix)
+            uuid_index = prefix_index + len(test_prefix)
             try:
-                uuid.UUID(the_uuid, version=4)
-            except ValueError:
-                # Not a valid UUID4
+                test_uuid = package[uuid_index:uuid_index+36]
+            except IndexError:
                 pass
             else:
-                pkg_name = string[:prefix_index]
-                # if there is no package name before the uuid use any text after the uuid
-                if pkg_name == '':
-                    pkg_name = string[uuid_index + len(the_uuid):]
-                pkg_uuid = the_uuid
-    
+                if is_valid_uuid(test_uuid):
+                    pre_uuid = package[:prefix_index]
+                    post_uuid = package[uuid_index+36:]
+                    if pre_uuid != '':
+                        pkg_name = remove_package_divider(pre_uuid, is_prefix=True)
+                    elif post_uuid != '':
+                        pkg_name = remove_package_divider(post_uuid, is_prefix=False)
+                    return pkg_name
 
-    if pkg_name == '' and pkg_uuid == '':
-        # See if the uuid is at the end of string name (most likely)
-        the_uuid = string[:-UUID4_LENGTH]
-        try:
-            uuid.UUID(the_uuid, version=4)
-        except ValueError:
-            # Not a valid UUID4
-            pass
-        else:
-            pkg_name = string[:-len(the_uuid)]
-            pkg_uuid = the_uuid
+        if is_valid_uuid(package[-36:]):
+            return remove_package_divider(package[:-36], is_prefix=True)
 
-    if pkg_name == '' and pkg_uuid == '':
-        # See if the uuid is at the start of string name
-        the_uuid = string[:UUID4_LENGTH]
-        try:
-            uuid.UUID(the_uuid, version=4)
-        except ValueError:
-            # Not a valid UUID4
-            pass
-        else:
-            pkg_name = string[len(the_uuid):]
-            pkg_uuid = the_uuid
-    return pkg_name.strip(), pkg_uuid
+        if is_valid_uuid(package[:36]):
+            return remove_package_divider(package[36:], is_prefix=False)
+
+    return package
+
+
+def is_valid_uuid(string: str) -> bool:
+    try:
+        uuid.UUID(string, version=4)
+    except ValueError:
+        return False
+    else:
+        return True
 
 
 def get_checksum(file: Path) -> str:
@@ -109,8 +110,8 @@ def generate_mets(directory: Path, content_info_type: str, agent_data: dict, is_
     # Mets attributes, dependant on the content information type
 
     if is_root_mets:
-        pkg_name, _ = get_package_and_uuid_from_string(directory.name)
-        objid = pkg_name + " - " + new_uuid('uuid-')
+        objid = get_package_name(directory.name) + ' - ' + new_uuid('uuid-')
+
     else:
         objid = directory.name
 
